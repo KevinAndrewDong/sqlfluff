@@ -184,6 +184,16 @@ sparksql_dialect.insert_lexer_matchers(
 sparksql_dialect.insert_lexer_matchers(
     [
         RegexLexer(
+            "variable_substitution",
+            r"\$\{[^\s}]+\}",
+            CodeSegment,
+        ),
+    ],
+    before="dollar_quote",
+)
+sparksql_dialect.insert_lexer_matchers(
+    [
+        RegexLexer(
             "at_sign_literal",
             r"@\w*",
             CodeSegment,
@@ -349,7 +359,17 @@ sparksql_dialect.replace(
             Ref("RawQuotedLiteralSegment"),
             Ref("BytesQuotedLiteralSegment"),
             Ref("ParameterizedSegment"),
+            Ref("VariableSubstitutionSegment"),
         ]
+    ),
+    InOperatorGrammar=OneOf(
+        ansi_dialect.get_grammar("InOperatorGrammar"),
+        # A native variable may supply the entire parenthesized IN list.
+        Sequence(
+            Ref.keyword("NOT", optional=True),
+            "IN",
+            Ref("VariableSubstitutionSegment"),
+        ),
     ),
     NaturalJoinKeywordsGrammar=Sequence(
         "NATURAL",
@@ -395,6 +415,7 @@ sparksql_dialect.replace(
         Ref("QuotedIdentifierSegment"),
         Ref("SingleQuotedIdentifierSegment"),
         Ref("BackQuotedIdentifierSegment"),
+        Ref("VariableSubstitutionIdentifierSegment"),
     ),
     WhereClauseTerminatorGrammar=OneOf(
         "LIMIT",
@@ -509,6 +530,16 @@ sparksql_dialect.replace(
 )
 
 sparksql_dialect.add(
+    # Spark substitutes these before parsing SQL. Keep their source text opaque,
+    # including namespace prefixes and keys that are not SQL identifiers.
+    VariableSubstitutionSegment=TypedParser(
+        "variable_substitution", CodeSegment, type="variable_substitution"
+    ),
+    # Identifier positions also need reference-analysis semantics, so a qualified
+    # column such as t.${hiveconf:col} is not mistaken for an unqualified one.
+    VariableSubstitutionIdentifierSegment=TypedParser(
+        "variable_substitution", IdentifierSegment, type="variable_substitution"
+    ),
     BackQuotedIdentifierSegment=TypedParser(
         "back_quote",
         IdentifierSegment,

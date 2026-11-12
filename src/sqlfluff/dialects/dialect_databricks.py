@@ -92,7 +92,7 @@ databricks_dialect.insert_lexer_matchers(
 databricks_dialect.insert_lexer_matchers(
     # Databricks Pipeline Parameters:
     # https://docs.databricks.com/en/delta-live-tables/parameters.html
-    # Must come before dollar_quote since both start with $
+    # Preserve pipeline tokens ahead of Spark's general variable substitutions.
     [
         RegexLexer(
             "pipeline_parameter",
@@ -100,7 +100,7 @@ databricks_dialect.insert_lexer_matchers(
             CodeSegment,
         ),
     ],
-    before="dollar_quote",
+    before="variable_substitution",
 )
 
 
@@ -235,6 +235,14 @@ databricks_dialect.add(
 
 # Override SingleIdentifierGrammar to include parameterized segments
 databricks_dialect.replace(
+    InOperatorGrammar=OneOf(
+        sparksql_dialect.get_grammar("InOperatorGrammar"),
+        Sequence(
+            Ref.keyword("NOT", optional=True),
+            "IN",
+            Ref("PipelineParameterSegment"),
+        ),
+    ),
     SingleIdentifierGrammar=sparksql_dialect.get_grammar(
         "SingleIdentifierGrammar"
     ).copy(

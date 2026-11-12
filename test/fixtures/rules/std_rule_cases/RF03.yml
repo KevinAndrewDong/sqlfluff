@@ -1634,3 +1634,41 @@ test_fail_sqlite_order_by_function_with_unqualified_reference:
   configs:
     core:
       dialect: sqlite
+
+test_pass_sparksql_variable_qualified_reference:
+  # Native variable components must count toward qualification, so RF03 cannot
+  # turn the already-qualified second column into t.t.${hiveconf:col}.
+  pass_str: SELECT t.id, t.${hiveconf:col} FROM tbl AS t
+  configs:
+    core:
+      dialect: sparksql
+      templater: raw
+
+test_pass_databricks_variable_qualified_reference:
+  pass_str: SELECT t.id, t.${hiveconf:col} FROM tbl AS t
+  configs:
+    core:
+      dialect: databricks
+      templater: raw
+
+test_fail_sparksql_variable_qualified_reference_unqualified:
+  fail_str: SELECT t.${hiveconf:col} FROM tbl AS t
+  fix_str: SELECT ${hiveconf:col} FROM tbl AS t
+  configs:
+    core:
+      dialect: sparksql
+      templater: raw
+    rules:
+      references.consistent:
+        single_table_references: unqualified
+
+test_fail_databricks_variable_qualified_reference_unqualified:
+  fail_str: SELECT t.${hiveconf:col} FROM tbl AS t
+  fix_str: SELECT ${hiveconf:col} FROM tbl AS t
+  configs:
+    core:
+      dialect: databricks
+      templater: raw
+    rules:
+      references.consistent:
+        single_table_references: unqualified
